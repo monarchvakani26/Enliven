@@ -187,7 +187,7 @@ async def _gemini_classify(text: str, ml_hint: dict) -> Optional[dict]:
         prompt = MODERATION_PROMPT.format(user_input=text)
 
         last_error = None
-        for attempt in range(3):
+        for attempt in range(2):  # max 1 retry (5s wait) — keeps API fast
             try:
                 response = client.models.generate_content(
                     model="gemini-2.0-flash",
@@ -221,10 +221,13 @@ async def _gemini_classify(text: str, ml_hint: dict) -> Optional[dict]:
                 last_error = e
                 err_str = str(e).lower()
                 if "resource_exhausted" in err_str or "429" in err_str or "quota" in err_str:
-                    wait = 15 * (2 ** attempt)
-                    logger.warning(f"Gemini rate limit (attempt {attempt+1}/3). Waiting {wait}s...")
-                    await asyncio.sleep(wait)
-                    continue
+                    if attempt == 0:
+                        logger.warning(f"Gemini rate limited — retrying in 5s...")
+                        await asyncio.sleep(5)
+                        continue
+                    else:
+                        logger.warning("Gemini still rate limited — using ML fallback")
+                        return None
                 logger.error(f"Gemini error: {e}")
                 return None
 
