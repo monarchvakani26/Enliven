@@ -120,7 +120,69 @@ async def get_ml_metrics():
         "training_accuracy": metrics.get("training_accuracy", 0),
         "per_class": metrics.get("per_class", {}),
         "features": metrics.get("features", 0),
-        "pipeline": "Layer 1: TF-IDF+LR → Layer 2: Gemini 2.0 Flash → Layer 3: Confidence Fusion",
+        "pipeline": "Layer 1: TF-IDF+LR → Layer 2: Gemini 2.0 Flash → Layer 2b: Google NL API → Layer 3: Confidence Fusion",
+    }
+
+
+@app.post("/api/retrain")
+async def retrain_model():
+    """
+    Retrain the ML classifier from scratch.
+    Returns updated metrics after training.
+    Useful for demoing live model updates.
+    """
+    import ml_classifier
+    import asyncio
+    loop = asyncio.get_event_loop()
+    # Run in thread to avoid blocking event loop
+    metrics = await loop.run_in_executor(None, ml_classifier.train)
+    ml_classifier.load()
+    logger.info(f"✅ Model retrained: CV={metrics['cv_accuracy_mean']:.1%}")
+    return {
+        "success": True,
+        "message": "Model retrained successfully",
+        "metrics": {
+            "training_examples": metrics["training_examples"],
+            "cv_accuracy": metrics["cv_accuracy_mean"],
+            "training_accuracy": metrics["training_accuracy"],
+            "per_class": metrics["per_class"],
+        }
+    }
+
+
+@app.get("/api/system-status")
+async def system_status():
+    """Full system health — all AI layers, DB, and ML model."""
+    import ml_classifier
+    ml_metrics = ml_classifier.get_metrics()
+    gemini_key = bool(os.getenv("GEMINI_API_KEY"))
+    nl_key = bool(os.getenv("GOOGLE_NL_API_KEY"))
+
+    return {
+        "status": "ok",
+        "layers": {
+            "layer1_ml": {
+                "status": "active" if ml_metrics else "not_loaded",
+                "model": ml_metrics.get("model_type", ""),
+                "cv_accuracy": ml_metrics.get("cv_accuracy_mean", 0),
+                "training_examples": ml_metrics.get("training_examples", 0),
+            },
+            "layer2a_gemini": {
+                "status": "configured" if gemini_key else "missing_key",
+                "model": "gemini-2.0-flash",
+                "key_set": gemini_key,
+            },
+            "layer2b_google_nl": {
+                "status": "configured" if nl_key else "optional_not_set",
+                "key_set": nl_key,
+                "free_tier": "5000 units/month",
+            },
+            "layer3_fusion": {
+                "status": "active",
+                "strategy": "Gemini 70% + ML 30% weighted",
+            },
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

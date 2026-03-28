@@ -19,27 +19,48 @@ const CHART_OPTS = {
 };
 
 export default function DashboardPage() {
-  const [stats, setStats]     = useState(null);
-  const [recent, setRecent]   = useState([]);
-  const [mlMeta, setMlMeta]   = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats]       = useState(null);
+  const [recent, setRecent]     = useState([]);
+  const [mlMeta, setMlMeta]     = useState(null);
+  const [sysStatus, setSysStatus] = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [retraining, setRetraining] = useState(false);
+  const [retrainMsg, setRetrainMsg] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [s, r, ml] = await Promise.all([
+      const [s, r, ml, sys] = await Promise.all([
         fetch(`${API}/api/stats`).then(r => r.json()),
         fetch(`${API}/api/recent?n=15&flagged_only=false`).then(r => r.json()),
         fetch(`${API}/api/ml-metrics`).then(r => r.json()),
+        fetch(`${API}/api/system-status`).then(r => r.json()),
       ]);
       setStats(s);
       setRecent(r.logs || []);
       setMlMeta(ml);
+      setSysStatus(sys);
     } catch (e) {
       console.warn('Could not fetch dashboard data:', e.message);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleRetrain = async () => {
+    setRetraining(true);
+    setRetrainMsg(null);
+    try {
+      const res = await fetch(`${API}/api/retrain`, { method: 'POST' });
+      const data = await res.json();
+      setRetrainMsg(`✅ Retrained! CV Accuracy: ${(data.metrics.cv_accuracy * 100).toFixed(1)}%`);
+      await fetchData();
+    } catch (e) {
+      setRetrainMsg('❌ Retrain failed: ' + e.message);
+    } finally {
+      setRetraining(false);
+      setTimeout(() => setRetrainMsg(null), 5000);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -190,6 +211,57 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Retrain + System Status row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                {/* System Status badges */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {sysStatus && Object.entries(sysStatus.layers).map(([key, layer]) => {
+                    const active = layer.status === 'active' || layer.status === 'configured';
+                    return (
+                      <div key={key} style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        background: active ? 'rgba(0,214,143,0.08)' : 'rgba(255,255,255,0.04)',
+                        border: `1px solid ${active ? 'rgba(0,214,143,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                        borderRadius: 20, padding: '4px 10px', fontSize: 11,
+                      }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: active ? 'var(--safe)' : 'var(--text-muted)' }} />
+                        <span style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                          {key.replace('layer', 'L').replace('_', ' ').replace('_ml','·ML').replace('_gemini','·Gemini').replace('_google_nl','·NL API').replace('_fusion','·Fusion')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Retrain button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {retrainMsg && (
+                    <span style={{ fontSize: 12, color: retrainMsg.startsWith('✅') ? 'var(--safe)' : 'var(--toxic)' }}>
+                      {retrainMsg}
+                    </span>
+                  )}
+                  <button
+                    id="retrain-btn"
+                    onClick={handleRetrain}
+                    disabled={retraining}
+                    style={{
+                      background: retraining ? 'rgba(108,99,255,0.3)' : 'rgba(108,99,255,0.15)',
+                      border: '1px solid rgba(108,99,255,0.5)',
+                      borderRadius: 8, padding: '8px 16px',
+                      color: '#6c63ff', fontSize: 12, fontWeight: 600,
+                      cursor: retraining ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s',
+                    }}
+                  >
+                    {retraining ? (
+                      <><div className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> Retraining...</>
+                    ) : (
+                      <>🔄 Retrain Model</>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
