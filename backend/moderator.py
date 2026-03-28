@@ -280,24 +280,130 @@ def _fuse_results(ml: dict, gemini: Optional[dict]) -> dict:
     return result
 
 
-# ─── Main Entry Point ─────────────────────────────────────────────────────────
+# ─── Google Cloud Natural Language API (optional) ─────────────────────────────────
+async def _google_nl_moderate(text: str) -> dict | None:
+    """
+    Google Cloud Natural Language API — moderateText endpoint.
+    Returns confidence scores for: TOXIC, INSULT, PROFANITY,
+    DEROGATORY, THREAT, HATE_SPEECH, SEXUAL, VIOLENT.
+    Free tier: 5,000 units/month.
+    Requires GOOGLE_NL_API_KEY in .env.
+    """
+    api_key = os.getenv("GOOGLE_NL_API_KEY", "")
+    if not api_key:
+        return None  # Optional — silently skip if key not configured
+
+    try:
+        import httpx
+        url = f"https://language.googleapis.com/v2/documents:moderateText?key={api_key}"
+        payload = {
+            "document": {
+                "type": "PLAIN_TEXT",
+                "content": text,
+            }
+        }
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=payload)
+            if resp.status_code != 200:
+                logger.warning(f"Google NL API error {resp.status_code}: {resp.text[:200]}")
+                return None
+
+            data = resp.json()
+            categories = data.get("moderationCategories", [])
+
+            # Build a clean confidence map
+            scores = {}
+            for cat in categories:
+                name = cat.get("name", "")
+                conf = cat.get("confidence", 0.0)
+                scores[name] = round(conf, 3)
+
+            # Map to SafeSphere categories
+            toxic_signals = [
+                scores.get("Toxic", 0),
+                scores.get("Insult", 0),
+                scores.get("Profanity", 0),
+                scores.get("Derogatory", 0),
+                scores.get("Violent", 0),
+                scores.get("Firearms & Weapons", 0),
+            ]
+            hate_signals = [
+                scores.get("Identity Attack & Hate", 0),
+            ]
+
+            max_toxic = max(toxic_signals) if toxic_signals else 0
+            max_hate = max(hate_signals) if hate_signals else 0
+            overall = max(max_toxic, max_hate)
+
+            if overall >= 0.75:
+                nl_category = "Toxic"
+            elif overall >= 0.40:
+                nl_category = "Risky"
+            else:
+                nl_category = "Safe"
+
+            logger.info(f"[NL API] {nl_category} (max={overall:.2f}) | {text[:40]}")
+            return {
+                "category": nl_category,
+                "confidence": int(overall * 100),
+                "scores": scores,
+            }
+
+    except Exception as e:
+        logger.warning(f"Google NL API call failed: {e}")
+        return None
+
+# ─── Main Entry Point ───────────────────────────────────────────────────
 async def moderate(text: str) -> dict:
     """
-    3-Layer moderation pipeline:
-      1. Local ML model (TF-IDF + Logistic Regression) — always runs
-      2. Google Gemini 2.0 Flash — contextual LLM analysis
-      3. Confidence fusion — weighted combination of both layers
+    Multi-Layer AI Moderation Pipeline:
+
+      Layer 1 — Local Trained ML Model (TF-IDF + Logistic Regression)
+               Always runs. Offline. No API quota. Instant.
+               Trained on 115+ multilingual examples (EN/Hindi/Hinglish).
+
+      Layer 2a — Google Gemini 2.0 Flash (LLM)
+               Deep contextual analysis, sarcasm detection,
+               multilingual understanding, detailed explanation.
+
+      Layer 2b — Google Cloud Natural Language API [optional]
+               Google's pre-trained content safety model.
+               moderateText endpoint — free tier 5,000 units/month.
+               Signals: TOXIC, INSULT, PROFANITY, HATE_SPEECH, VIOLENT...
+
+      Layer 3 — Confidence Fusion
+               Weighted combination: Gemini 70% + ML 30%.
+               If NL API available: elevates category when it flags Toxic.
+               Conservative: never lowers a Toxic verdict from either layer.
     """
+    import asyncio
+
     # Layer 1 — always fast, offline, no quota
     ml_result = _ml_classify(text)
-    logger.info(f"[ML Layer] {ml_result['category']} ({ml_result['confidence']}%) | {text[:40]}")
+    logger.info(f"[ML  ] {ml_result['category']} ({ml_result['confidence']}%) | {text[:40]}")
 
-    # Layer 2 — Gemini contextual analysis
-    gemini_result = await _gemini_classify(text, ml_result)
+    # Layers 2a + 2b run concurrently
+    gemini_result, nl_result = await asyncio.gather(
+        _gemini_classify(text, ml_result),
+        _google_nl_moderate(text),
+    )
 
     # Layer 3 — fusion
     final = _fuse_results(ml_result, gemini_result)
     if final is None:
-        return _fallback_result(text, ml_result)
+        final = _fallback_result(text, ml_result)
+
+    # Incorporate NL API signal if available
+    if nl_result:
+        final["layers"]["google_nl"] = nl_result
+
+        # Conservative escalation: if NL API says Toxic, don't downgrade
+        category_order = {"Safe": 0, "Risky": 1, "Toxic": 2}
+        if category_order.get(nl_result["category"], 0) > category_order.get(final["category"], 0):
+            final["category"] = nl_result["category"]
+            logger.info(f"[Fusion] NL API escalated to {final['category']}")
+    else:
+        if "layers" in final:
+            final["layers"]["google_nl"] = None
 
     return final
