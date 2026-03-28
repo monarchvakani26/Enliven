@@ -1,6 +1,9 @@
 """
 SafeSphere AI — LLM Moderation Engine
-Uses Google Gemini (primary) or OpenAI (fallback).
+3-Layer AI Pipeline:
+  Layer 1: Local Trained ML Model (TF-IDF + Logistic Regression)
+  Layer 2: Google Gemini 2.0 Flash (contextual LLM)
+  Layer 3: Combined verdict with confidence fusion
 """
 import os
 import json
@@ -96,7 +99,26 @@ IMPORTANT:
 
 
 # ─── Fallback result when LLM fails ──────────────────────────────────────────
-def _fallback_result(text: str) -> dict:
+def _fallback_result(text: str, ml_result: Optional[dict] = None) -> dict:
+    """When Gemini fails, use ML result if available, else generic fallback."""
+    if ml_result:
+        cat = ml_result.get("category", "Risky")
+        conf = ml_result.get("confidence", 50)
+        severity_map = {"Safe": "low", "Risky": "medium", "Toxic": "high"}
+        return {
+            "category": cat,
+            "type": "None",
+            "confidence": conf,
+            "explanation": f"Classified by local ML model (Gemini unavailable). Category: {cat}.",
+            "harmful_phrases": [],
+            "context_analysis": f"ML confidence: {conf}%. Probabilities: {ml_result.get('probabilities', {})}",
+            "severity": severity_map.get(cat, "medium"),
+            "language": "English",
+            "layers": {
+                "ml": ml_result,
+                "gemini": None,
+            }
+        }
     return {
         "category": "Risky",
         "type": "None",
@@ -106,35 +128,48 @@ def _fallback_result(text: str) -> dict:
         "context_analysis": "Could not connect to AI model. Please check API key configuration.",
         "severity": "medium",
         "language": "English",
+        "layers": {"ml": None, "gemini": None},
     }
 
 
 # ─── JSON Extractor ────────────────────────────────────────────────────────────
 def _extract_json(raw: str) -> Optional[dict]:
     """Extract JSON from potentially noisy LLM output."""
-    # Try direct parse first
     try:
         return json.loads(raw.strip())
     except json.JSONDecodeError:
         pass
 
-    # Try to extract JSON block
     match = re.search(r'\{[\s\S]*\}', raw)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
             pass
-
     return None
 
 
-# ─── Gemini Moderator (uses new google-genai SDK) ────────────────────────────
-async def moderate_with_gemini(text: str) -> dict:
+# ─── Layer 1: Local ML Model ──────────────────────────────────────────────────
+def _ml_classify(text: str) -> dict:
+    """Run the trained TF-IDF + Logistic Regression classifier."""
+    try:
+        import ml_classifier
+        result = ml_classifier.predict(text)
+        metrics = ml_classifier.get_metrics()
+        result["model_type"] = metrics.get("model_type", "TF-IDF + LR")
+        result["cv_accuracy"] = metrics.get("cv_accuracy_mean", None)
+        return result
+    except Exception as e:
+        logger.warning(f"ML classifier error: {e}")
+        return {"category": "Risky", "confidence": 50, "probabilities": {}}
+
+
+# ─── Layer 2: Google Gemini 2.0 Flash ────────────────────────────────────────
+async def _gemini_classify(text: str, ml_hint: dict) -> Optional[dict]:
+    """Call Gemini 2.0 Flash for deep contextual analysis."""
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
-        logger.warning("GEMINI_API_KEY not set")
-        return _fallback_result(text)
+        return None
 
     try:
         from google import genai
@@ -151,7 +186,6 @@ async def moderate_with_gemini(text: str) -> dict:
 
         prompt = MODERATION_PROMPT.format(user_input=text)
 
-        # Retry up to 3 times for rate limit errors
         last_error = None
         for attempt in range(3):
             try:
@@ -167,7 +201,6 @@ async def moderate_with_gemini(text: str) -> dict:
 
                 raw = response.text.strip() if response.text else ""
 
-                # Strip markdown code fences if present
                 if raw.startswith("```"):
                     raw = re.sub(r"^```(?:json)?\s*", "", raw)
                     raw = re.sub(r"```\s*$", "", raw).strip()
@@ -179,82 +212,92 @@ async def moderate_with_gemini(text: str) -> dict:
                     result.setdefault("severity", "low")
                     result.setdefault("language", "English")
                     result["confidence"] = int(result.get("confidence", 50))
-                    logger.info(f"✅ Moderation success: {result['category']} ({result['confidence']}%)")
+                    logger.info(f"✅ Gemini: {result['category']} ({result['confidence']}%)")
                     return result
 
-                logger.warning(f"Could not parse Gemini response: {raw[:200]}")
-                return _fallback_result(text)
+                return None
 
             except Exception as e:
                 last_error = e
                 err_str = str(e).lower()
                 if "resource_exhausted" in err_str or "429" in err_str or "quota" in err_str:
-                    wait = 15 * (2 ** attempt)  # 15s, 30s, 60s
-                    logger.warning(f"Rate limited (attempt {attempt+1}/3). Waiting {wait}s...")
+                    wait = 15 * (2 ** attempt)
+                    logger.warning(f"Gemini rate limit (attempt {attempt+1}/3). Waiting {wait}s...")
                     await asyncio.sleep(wait)
                     continue
-                # Non-rate-limit error — don't retry
                 logger.error(f"Gemini error: {e}")
-                return _fallback_result(text)
+                return None
 
-        logger.error(f"Rate limit exhausted after 3 retries: {last_error}")
-        return _fallback_result(text)
+        logger.error(f"Gemini quota exhausted: {last_error}")
+        return None
 
     except Exception as e:
-        logger.error(f"Gemini error: {e}")
-        return _fallback_result(text)
+        logger.error(f"Gemini init error: {e}")
+        return None
 
 
+# ─── Layer 3: Confidence Fusion ───────────────────────────────────────────────
+def _fuse_results(ml: dict, gemini: Optional[dict]) -> dict:
+    """
+    Combine ML + Gemini results into a final verdict.
+    - If Gemini available: use Gemini as primary, ML confidence as signal
+    - If Gemini unavailable: use ML result with appropriate fallback label
+    """
+    if gemini is None:
+        return None  # Caller handles fallback
 
+    # Weight: Gemini 70%, ML 30%
+    category_order = {"Safe": 0, "Risky": 1, "Toxic": 2}
+    gem_cat = gemini.get("category", "Risky")
+    ml_cat = ml.get("category", "Risky")
 
-# ─── OpenAI Moderator ─────────────────────────────────────────────────────────
-async def moderate_with_openai(text: str) -> dict:
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        logger.warning("OPENAI_API_KEY not set")
-        return _fallback_result(text)
+    # If ML says Toxic but Gemini says Safe — be cautious, go Risky
+    if category_order.get(ml_cat, 1) > category_order.get(gem_cat, 1) + 1:
+        fused_category = "Risky"
+    else:
+        fused_category = gem_cat
 
-    try:
-        import httpx
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
+    gem_conf = gemini.get("confidence", 50)
+    ml_conf = ml.get("confidence", 50)
+    fused_conf = int(round(gem_conf * 0.7 + ml_conf * 0.3))
+
+    result = dict(gemini)
+    result["category"] = fused_category
+    result["confidence"] = fused_conf
+    result["layers"] = {
+        "ml": {
+            "category": ml.get("category"),
+            "confidence": ml.get("confidence"),
+            "probabilities": ml.get("probabilities", {}),
+            "model_type": ml.get("model_type", "TF-IDF + LR"),
+            "cv_accuracy": ml.get("cv_accuracy"),
+        },
+        "gemini": {
+            "category": gem_cat,
+            "confidence": gem_conf,
         }
-        prompt = MODERATION_PROMPT.format(user_input=text)
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [{"role": "user", "content": prompt}],
-            "response_format": {"type": "json_object"},
-            "temperature": 0.1,
-        }
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            data = resp.json()
-            raw = data["choices"][0]["message"]["content"]
-            result = _extract_json(raw)
-            if result:
-                result.setdefault("harmful_phrases", [])
-                result.setdefault("context_analysis", "")
-                result.setdefault("severity", "low")
-                result.setdefault("language", "English")
-                return result
-
-        return _fallback_result(text)
-    except Exception as e:
-        logger.error(f"OpenAI error: {e}")
-        return _fallback_result(text)
+    }
+    return result
 
 
 # ─── Main Entry Point ─────────────────────────────────────────────────────────
 async def moderate(text: str) -> dict:
-    """Route to the configured LLM provider."""
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower()
+    """
+    3-Layer moderation pipeline:
+      1. Local ML model (TF-IDF + Logistic Regression) — always runs
+      2. Google Gemini 2.0 Flash — contextual LLM analysis
+      3. Confidence fusion — weighted combination of both layers
+    """
+    # Layer 1 — always fast, offline, no quota
+    ml_result = _ml_classify(text)
+    logger.info(f"[ML Layer] {ml_result['category']} ({ml_result['confidence']}%) | {text[:40]}")
 
-    if provider == "openai":
-        return await moderate_with_openai(text)
-    else:
-        return await moderate_with_gemini(text)
+    # Layer 2 — Gemini contextual analysis
+    gemini_result = await _gemini_classify(text, ml_result)
+
+    # Layer 3 — fusion
+    final = _fuse_results(ml_result, gemini_result)
+    if final is None:
+        return _fallback_result(text, ml_result)
+
+    return final

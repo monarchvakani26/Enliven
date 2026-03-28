@@ -35,6 +35,9 @@ active_connections: List[WebSocket] = []
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 SafeSphere AI starting up...")
+    # Init ML model (train from scratch if not found)
+    import ml_classifier
+    ml_classifier.init()
     await connect_db()
     yield
     logger.info("👋 SafeSphere AI shutting down.")
@@ -102,6 +105,23 @@ async def get_recent_logs(n: int = 20, flagged_only: bool = False):
 async def get_sample_comments():
     """Return the sample comment dataset for frontend reference."""
     return {"comments": SAMPLE_COMMENTS}
+
+
+@app.get("/api/ml-metrics")
+async def get_ml_metrics():
+    """Return trained ML model performance metrics."""
+    import ml_classifier
+    metrics = ml_classifier.get_metrics()
+    return {
+        "model_type": metrics.get("model_type", "TF-IDF + Logistic Regression"),
+        "training_examples": metrics.get("training_examples", 0),
+        "cv_accuracy": metrics.get("cv_accuracy_mean", 0),
+        "cv_std": metrics.get("cv_accuracy_std", 0),
+        "training_accuracy": metrics.get("training_accuracy", 0),
+        "per_class": metrics.get("per_class", {}),
+        "features": metrics.get("features", 0),
+        "pipeline": "Layer 1: TF-IDF+LR → Layer 2: Gemini 2.0 Flash → Layer 3: Confidence Fusion",
+    }
 
 
 # ─── WebSocket Live Feed ──────────────────────────────────────────────────────

@@ -44,7 +44,6 @@ def build_pipeline() -> Pipeline:
             C=1.0,
             class_weight="balanced",
             solver="lbfgs",
-            multi_class="auto",
         )),
     ])
 

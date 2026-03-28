@@ -80,6 +80,53 @@ export default function ModerationCard({ item, compact = false }) {
               </span>
             </div>
           )}
+
+          {/* 3-Layer Pipeline breakdown */}
+          {result.layers && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                🤖 AI Layer Breakdown
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {/* ML Layer */}
+                {result.layers.ml && (
+                  <div style={{ flex: 1, background: 'rgba(108,99,255,0.12)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(108,99,255,0.25)' }}>
+                    <div style={{ fontSize: 10, color: '#6c63ff', marginBottom: 4, fontWeight: 600 }}>LAYER 1 · ML MODEL</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {result.layers.ml.category} <span style={{ color: '#6c63ff' }}>{result.layers.ml.confidence}%</span>
+                    </div>
+                    {result.layers.ml.probabilities && (
+                      <div style={{ marginTop: 4 }}>
+                        {Object.entries(result.layers.ml.probabilities).map(([cls, prob]) => (
+                          <div key={cls} style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{cls}</span><span>{(prob * 100).toFixed(0)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Gemini Layer */}
+                {result.layers.gemini && (
+                  <div style={{ flex: 1, background: 'rgba(0,214,143,0.08)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(0,214,143,0.2)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--safe)', marginBottom: 4, fontWeight: 600 }}>LAYER 2 · GEMINI 2.0</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {result.layers.gemini.category} <span style={{ color: 'var(--safe)' }}>{result.layers.gemini.confidence}%</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Contextual + Multilingual</div>
+                  </div>
+                )}
+                {/* Fusion */}
+                <div style={{ flex: 1, background: 'rgba(255,170,0,0.08)', borderRadius: 8, padding: '8px 10px', border: '1px solid rgba(255,170,0,0.2)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--risky)', marginBottom: 4, fontWeight: 600 }}>LAYER 3 · FUSED</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {result.category} <span style={{ color: 'var(--risky)' }}>{result.confidence}%</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Gemini 70% · ML 30%</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

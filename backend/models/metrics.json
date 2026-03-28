@@ -1,0 +1,25 @@
+{
+  "training_examples": 115,
+  "cv_accuracy_mean": 0.5739,
+  "cv_accuracy_std": 0.1114,
+  "training_accuracy": 1.0,
+  "per_class": {
+    "Safe": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "Risky": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "Toxic": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "model_type": "TF-IDF (char 2-4 ngrams) + Logistic Regression",
+  "features": 20000
+}
