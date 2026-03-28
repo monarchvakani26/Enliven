@@ -152,11 +152,16 @@ async def retrain_model():
 
 @app.get("/api/system-status")
 async def system_status():
-    """Full system health — all AI layers, DB, and ML model."""
+    """Full system health — all AI layers status."""
     import ml_classifier
     ml_metrics = ml_classifier.get_metrics()
     gemini_key = bool(os.getenv("GEMINI_API_KEY"))
-    nl_key = bool(os.getenv("GOOGLE_NL_API_KEY"))
+
+    try:
+        from langdetect import detect
+        lang_ok = True
+    except ImportError:
+        lang_ok = False
 
     return {
         "status": "ok",
@@ -166,20 +171,24 @@ async def system_status():
                 "model": ml_metrics.get("model_type", ""),
                 "cv_accuracy": ml_metrics.get("cv_accuracy_mean", 0),
                 "training_examples": ml_metrics.get("training_examples", 0),
+                "cost": "free",
             },
-            "layer2a_gemini": {
+            "layer2_gemini": {
                 "status": "configured" if gemini_key else "missing_key",
                 "model": "gemini-2.0-flash",
                 "key_set": gemini_key,
+                "cost": "free (15 RPM)",
             },
-            "layer2b_google_nl": {
-                "status": "configured" if nl_key else "optional_not_set",
-                "key_set": nl_key,
-                "free_tier": "5000 units/month",
+            "layer3_langdetect": {
+                "status": "active" if lang_ok else "not_installed",
+                "description": "Google language detection algorithm",
+                "languages": ["English", "Hindi", "Hinglish", "Mixed"],
+                "cost": "free",
             },
-            "layer3_fusion": {
+            "layer4_fusion": {
                 "status": "active",
                 "strategy": "Gemini 70% + ML 30% weighted",
+                "cost": "free",
             },
         },
         "timestamp": datetime.now(timezone.utc).isoformat(),
