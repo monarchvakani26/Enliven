@@ -1,0 +1,142 @@
+"""
+SafeSphere AI — Training Dataset
+Curated multilingual dataset for training the local ML classifier.
+Labels: 0=Safe, 1=Risky, 2=Toxic
+"""
+
+TRAINING_DATA = [
+    # ─── SAFE (0) — English ──────────────────────────────────────────────────────
+    ("Great work everyone, the team really pulled through!", 0),
+    ("You're absolutely killing it on this project!", 0),
+    ("I love this new feature, it's so smooth and fast.", 0),
+    ("Congratulations on the promotion, totally deserved!", 0),
+    ("This is the best product launch we've had in years.", 0),
+    ("Anyone else obsessed with this new season? It's fire!", 0),
+    ("Can't wait to see everyone at the event tomorrow.", 0),
+    ("I disagree with the policy, but I respect the process.", 0),
+    ("That presentation was genuinely impressive, well done.", 0),
+    ("This community is so supportive, love being here.", 0),
+    ("The new update is amazing, great job to the dev team.", 0),
+    ("Sending love and prayers to everyone affected.", 0),
+    ("This movie is a masterpiece, everyone should watch it.", 0),
+    ("Really enjoyed the discussion today, learned a lot.", 0),
+    ("So grateful for all the support during this time.", 0),
+    ("This debate is getting heated but I love the passion.", 0),
+    ("Just finished the book, highly recommend it!", 0),
+    ("The design looks incredible, super clean and modern.", 0),
+    ("What a comeback! This team never gives up.", 0),
+    ("So proud of how far we've all come together.", 0),
+
+    # ─── SAFE (0) — Hindi / Hinglish ──────────────────────────────────────────────
+    ("Yaar aaj ka din bahut acha tha, maza aa gaya!", 0),
+    ("Bhai tune toh kamaal kar diya aaj!", 0),
+    ("Shukriya dost, teri help ke bina kuch nahi hota.", 0),
+    ("Kal cricket match dekhte hain, bohot mazedaar hoga.", 0),
+    ("Bro this movie is literally fire, must watch karo!", 0),
+    ("Bhai aaj ka khana toh ekdum mast tha yaar!", 0),
+    ("Thank you so much dost, tujhe nahi bhulenge kabhi.", 0),
+    ("Yaar ye song sun, bohot acha hai!", 0),
+    ("Aaj gym mein ekdum mast workout tha bro!", 0),
+    ("Proud of you yaar, bahut mehnat ki tune!", 0),
+
+    # ─── RISKY (1) — Ambiguous / Sarcastic ────────────────────────────────────────
+    ("Oh wow, nice job genius. You've really outdone yourself.", 1),
+    ("Yeah sure, because THAT worked so well last time.", 1),
+    ("Some people just shouldn't be allowed on the internet.", 1),
+    ("I'm not saying he's stupid, but connect the dots.", 1),
+    ("This government is destroying everything, fight back!", 1),
+    ("Nice job idiot, you broke the whole system again.", 1),
+    ("These politicians are all corrupt, we should do something.", 1),
+    ("Honestly, some people just don't deserve to be here.", 1),
+    ("Keep doing what you're doing and see how it ends.", 1),
+    ("Oh brilliant idea, that will definitely not backfire.", 1),
+    ("People like you are the reason everything is broken.", 1),
+    ("Not sure what's more shocking, their stupidity or audacity.", 1),
+    ("Well someone had to say it, you're not that smart.", 1),
+    ("If you know what's good for you, you'll stop now.", 1),
+    ("This person clearly has no idea how the real world works.", 1),
+    ("Kuch log sirf drama karte hain, koi kaam nahi inhe.", 1),
+    ("Yaar ye log toh bakwaas karte hain, ignore kar inhe.", 1),
+    ("Ek baar aur kiya toh I swear main chup nahi rahunga.", 1),
+    ("Dobaara mat karna, samajh rahe ho na?", 1),
+    ("Kya yahi seekha hai tune? Itna hi aata hai?", 1),
+
+    # ─── TOXIC (2) — Threats ───────────────────────────────────────────────────────
+    ("I will find you and make you pay for this.", 2),
+    ("You better watch your back, I know where you live.", 2),
+    ("Keep talking and I'll destroy your career.", 2),
+    ("One more word and I'll make your life a living hell.", 2),
+    ("You have no idea what I'm capable of, be careful.", 2),
+    ("I will hunt you down for what you did.", 2),
+    ("This isn't over. You will regret this.", 2),
+    ("Say that again and see what happens to you.", 2),
+    ("I'm coming for you, don't think I've forgotten.", 2),
+    ("Consider this your last warning before things get serious.", 2),
+    ("Teri aisi ki taisi kar dunga, samjha kya?", 2),
+    ("Tujhe iska parinam bhugtna padega, dhyan rakhna.", 2),
+    ("Main chhodoonga nahi tujhe, dhoondh loonga kaheen bhi.", 2),
+
+    # ─── TOXIC (2) — Bullying / Harassment ───────────────────────────────────────
+    ("You are the dumbest person I've ever seen online.", 2),
+    ("Tu bewakoof hai, akal nahi hai teri.", 2),
+    ("Go kill yourself, nobody wants you here.", 2),
+    ("You're worthless and everyone knows it.", 2),
+    ("Nobody likes you, why don't you just disappear.", 2),
+    ("You're a complete failure and always will be.", 2),
+    ("Honestly you should just quit, you're terrible at this.", 2),
+    ("How does it feel to be the most pathetic person alive?", 2),
+    ("You're an embarrassment to everyone around you.", 2),
+    ("Do everyone a favor and stay off the internet forever.", 2),
+    ("Yeh toh bilkul gadha hai, kuch samajh nahi aata isko.", 2),
+    ("Tu toh pagal hai bilkul, dimag nahi hai tera.", 2),
+    ("Itna bura koi nahi hota, tu toh record tod raha hai.", 2),
+    ("Tujhse kuch nahi hoga, bus chale ja yahan se.", 2),
+
+    # ─── TOXIC (2) — Hate Speech ──────────────────────────────────────────────────
+    ("All people from that group are criminals by nature.", 2),
+    ("These people shouldn't be allowed in our country.", 2),
+    ("Women don't belong in tech, they ruin everything.", 2),
+    ("People of that religion are dangerous and should be deported.", 2),
+    ("This race has always been inferior, the data proves it.", 2),
+    ("That community is destroying our culture and values.", 2),
+    ("People born in that country are all the same.", 2),
+    ("Only our kind of people deserve to live here.", 2),
+    ("That ethnic group has caused all these problems.", 2),
+    ("Immigrants are taking everything that belongs to us.", 2),
+
+    # ─── TOXIC (2) — Misinformation ───────────────────────────────────────────────
+    ("The vaccines contain microchips to track you, don't take them!", 2),
+    ("5G towers were designed to spread the virus, share this!", 2),
+    ("The election was completely rigged, the results are fake!", 2),
+    ("Doctors are hiding the cure for cancer to make more money.", 2),
+    ("The government is putting chemicals in water to control minds.", 2),
+    ("This medication will kill you, medical establishment is lying.", 2),
+    ("Climate change is a hoax invented by globalists.", 2),
+    ("The moon landing was completely staged in a studio.", 2),
+    ("COVID vaccines cause autism, the data is being suppressed.", 2),
+    ("Chemtrails from planes are spraying poison on the population.", 2),
+
+    # ─── More diverse examples ────────────────────────────────────────────────────
+    ("I can't believe they fired him, totally unjust.", 0),
+    ("The sunset today was absolutely breathtaking.", 0),
+    ("Just passed my exam! So relieved and happy!", 0),
+    ("This recipe is incredible, made it for dinner tonight.", 0),
+    ("Really looking forward to the weekend trip!", 0),
+    ("That's a really interesting perspective, thanks for sharing.", 0),
+    ("The customer service was exceptional, truly impressed.", 0),
+    ("Happy birthday! Hope you have an amazing day!", 0),
+    ("This is getting out of hand, someone should step in.", 1),
+    ("Not sure I trust these people with our data.", 1),
+    ("Something about this doesn't feel right at all.", 1),
+    ("These companies are all scamming innocent people.", 1),
+    ("Everyone is against me but I'll prove them all wrong.", 1),
+    ("You'll see what happens when I'm done with you.", 2),
+    ("People like you don't deserve to breathe the same air.", 2),
+    ("Your kind has no place in this society.", 2),
+    ("I hope something terrible happens to you.", 2),
+    ("If I ever see you in person, it won't end well.", 2),
+]
+
+# Label mapping
+LABEL_NAMES = {0: "Safe", 1: "Risky", 2: "Toxic"}
+LABEL_MAP = {"Safe": 0, "Risky": 1, "Toxic": 2}
