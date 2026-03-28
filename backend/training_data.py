@@ -8,10 +8,15 @@ TRAINING_DATA = [
     # ─── SAFE (0) — English ──────────────────────────────────────────────────────
     ("Great work everyone, the team really pulled through!", 0),
     ("You're absolutely killing it on this project!", 0),
+    ("You are killing it, great work bro!", 0),
+    ("She is killing it at work, so impressed!", 0),
+    ("You're literally killing the game right now!", 0),
     ("I love this new feature, it's so smooth and fast.", 0),
     ("Congratulations on the promotion, totally deserved!", 0),
     ("This is the best product launch we've had in years.", 0),
     ("Anyone else obsessed with this new season? It's fire!", 0),
+    ("This track is absolute fire, can't stop listening!", 0),
+    ("This restaurant is fire, you have to try it!", 0),
     ("Can't wait to see everyone at the event tomorrow.", 0),
     ("I disagree with the policy, but I respect the process.", 0),
     ("That presentation was genuinely impressive, well done.", 0),
@@ -26,6 +31,10 @@ TRAINING_DATA = [
     ("The design looks incredible, super clean and modern.", 0),
     ("What a comeback! This team never gives up.", 0),
     ("So proud of how far we've all come together.", 0),
+    ("He's the GOAT, no one comes close to that performance!", 0),
+    ("This team is absolutely goated, unbelievable talent.", 0),
+    ("That was insane bro, you absolutely crushed it!", 0),
+    ("You slayed that presentation, everyone was impressed!", 0),
 
     # ─── SAFE (0) — Hindi / Hinglish ──────────────────────────────────────────────
     ("Yaar aaj ka din bahut acha tha, maza aa gaya!", 0),

@@ -1,7 +1,7 @@
 {
-  "training_examples": 115,
-  "cv_accuracy_mean": 0.5739,
-  "cv_accuracy_std": 0.1114,
+  "training_examples": 124,
+  "cv_accuracy_mean": 0.5977,
+  "cv_accuracy_std": 0.1435,
   "training_accuracy": 1.0,
   "per_class": {
     "Safe": {

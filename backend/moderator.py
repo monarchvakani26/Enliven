@@ -30,30 +30,52 @@ logger = logging.getLogger("safesphere.moderator")
 
 
 # ─── Language Detection (langdetect — Google's algorithm) ─────────────────────
+
+# Common Hindi/Hinglish transliterated words (Roman script)
+_HINDI_ROMAN_WORDS = {
+    "yaar", "bhai", "tu", "tum", "aap", "hai", "hain", "nahi", "nhi",
+    "tha", "thi", "the", "kya", "karo", "kar", "mein", "main", "teri",
+    "tera", "mera", "meri", "acha", "accha", "bahut", "bohot", "aaj",
+    "kal", "mat", "bhi", "toh", "tho", "woh", "yeh", "ye", "ek", "do",
+    "bewakoof", "gadha", "dimag", "dost", "shukriya", "kamaal", "maza",
+    "mazedaar", "ekdum", "ekbar", "dobaara", "bilkul", "kuch", "koi",
+    "kyun", "kaise", "jana", "aana", "jaa", "aa", "ho", "hoga", "hogi",
+    "rahunga", "rahugi", "rahe", "chhod", "chup", "swear", "yaar",
+}
+
 def _detect_language(text: str) -> str:
     """
     Auto-detect language using langdetect (based on Google's algorithm).
-    Returns a human-readable label for use in the prompt.
+    Enhanced with Hinglish detection for transliterated Hindi text.
+    Returns: English | Hindi | Hinglish | Mixed
     """
+    # Check for Devanagari script first (definitive Hindi)
+    has_devanagari = any('\u0900' <= c <= '\u097F' for c in text)
+    has_latin = any('a' <= c.lower() <= 'z' for c in text)
+
+    if has_devanagari and has_latin:
+        return "Hinglish"
+    if has_devanagari and not has_latin:
+        return "Hindi"
+
+    # Check for Hinglish: Roman-script Hindi words mixed with English
+    words_lower = set(word.strip(".,!?\"'").lower() for word in text.split())
+    hindi_word_count = len(words_lower & _HINDI_ROMAN_WORDS)
+    if hindi_word_count >= 2:
+        return "Hinglish"
+    if hindi_word_count == 1 and len(words_lower) <= 6:
+        return "Hinglish"
+
+    # Fall back to langdetect for pure English / other languages
     try:
         from langdetect import detect, DetectorFactory
-        DetectorFactory.seed = 42  # for deterministic results
+        DetectorFactory.seed = 42
         lang_code = detect(text)
-
-        # Check for Hinglish (English code but contains Devanagari words mixed)
-        has_devanagari = any('\u0900' <= c <= '\u097F' for c in text)
-        has_latin = any('a' <= c.lower() <= 'z' for c in text)
-
-        if has_devanagari and has_latin:
-            return "Hinglish"
-        elif has_devanagari:
+        if lang_code == "hi":
             return "Hindi"
-        elif lang_code == "hi":
-            return "Hindi"
-        elif lang_code in ("en",):
+        if lang_code == "en":
             return "English"
-        else:
-            return f"Mixed ({lang_code})"
+        return "English"  # default for unrecognised
     except Exception:
         return "English"
 
